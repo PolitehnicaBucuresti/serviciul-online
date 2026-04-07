@@ -6,8 +6,24 @@ import { websites } from "@/lib/websites";
 export default function HomePage() {
   const [statusMap, setStatusMap] = useState({});
   const [seIncarcaStatusul, setSeIncarcaStatusul] = useState(true);
+  const [cautare, setCautare] = useState("");
 
   const statusByUrl = useMemo(() => statusMap, [statusMap]);
+  const websiteuriFiltrate = useMemo(() => {
+    const text = cautare.trim().toLowerCase();
+    const sortate = [...websites].sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
+
+    if (!text) {
+      return sortate;
+    }
+
+    return sortate.filter((website) => {
+      return (
+        website.nume.toLowerCase().includes(text) ||
+        website.url.toLowerCase().includes(text)
+      );
+    });
+  }, [cautare]);
 
   useEffect(() => {
     let activ = true;
@@ -65,8 +81,18 @@ export default function HomePage() {
         </p>
       </section>
 
+      <section className="cautareWrapper" aria-label="Filtrare website-uri">
+        <input
+          type="search"
+          className="cautare"
+          placeholder="Caută după nume sau URL..."
+          value={cautare}
+          onChange={(event) => setCautare(event.target.value)}
+        />
+      </section>
+
       <section className="grila" aria-label="Lista website-uri Serviciul Online">
-        {websites.map((website) => {
+        {websiteuriFiltrate.map((website) => {
           const status = statusByUrl[website.url];
           const isKnown = typeof status === "boolean";
           const statusClass = !isKnown ? "necunoscut" : status ? "online" : "offline";
@@ -99,6 +125,9 @@ export default function HomePage() {
             </a>
           );
         })}
+        {!websiteuriFiltrate.length ? (
+          <p className="faraRezultate">Nu există rezultate pentru această căutare.</p>
+        ) : null}
       </section>
     </main>
   );

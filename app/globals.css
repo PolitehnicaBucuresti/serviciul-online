@@ -72,6 +72,26 @@ h1 {
   font-size: 0.95rem;
 }
 
+.cautareWrapper {
+  margin: 0 0 18px;
+}
+
+.cautare {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #ccd8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.98rem;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.cautare:focus {
+  outline: 2px solid #c4d5ff;
+  border-color: #9fb9ff;
+}
+
 .grila {
   display: grid;
   gap: 16px;
@@ -164,6 +184,11 @@ h2 {
   margin-top: auto;
   font-weight: 700;
   color: var(--primary-strong);
+}
+
+.faraRezultate {
+  margin: 4px 0 0;
+  color: var(--muted);
 }
 
 @media (max-width: 640px) {
