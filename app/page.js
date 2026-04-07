@@ -52,7 +52,7 @@ export default function HomePage() {
   return (
     <main className="pagina">
       <section className="hero">
-        <p className="badge">UPB · Serviciul Online</p>
+        <p className="badge">UNSTPB · Serviciul Online</p>
         <h1>Platforme digitale administrate de Serviciul Online</h1>
         <p className="descriere">
           Pagină centralizată pentru website-urile facultăților și inițiativelor
