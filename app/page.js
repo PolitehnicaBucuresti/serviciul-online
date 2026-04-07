@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { websites } from "@/lib/websites";
+import {
+  websitesNormale,
+  websitesPrincipale,
+  websitesWordPress
+} from "@/lib/websites";
 
 export default function HomePage() {
   const [statusMap, setStatusMap] = useState({});
@@ -9,50 +13,96 @@ export default function HomePage() {
   const [cautare, setCautare] = useState("");
 
   const statusByUrl = useMemo(() => statusMap, [statusMap]);
-  const websiteuriFiltrate = useMemo(() => {
+  const filtreazaSiSorteaza = useMemo(() => {
     const text = cautare.trim().toLowerCase();
-    const sortate = [...websites].sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
-
-    if (!text) {
-      return sortate;
-    }
-
-    return sortate.filter((website) => {
-      return (
-        website.nume.toLowerCase().includes(text) ||
-        website.url.toLowerCase().includes(text)
-      );
-    });
+    return (lista) => {
+      const sortate = [...lista].sort((a, b) => a.nume.localeCompare(b.nume, "ro"));
+      if (!text) {
+        return sortate;
+      }
+      return sortate.filter((website) => {
+        return (
+          website.nume.toLowerCase().includes(text) ||
+          website.url.toLowerCase().includes(text)
+        );
+      });
+    };
   }, [cautare]);
+
+  const principaleFiltrate = useMemo(
+    () => filtreazaSiSorteaza(websitesPrincipale),
+    [filtreazaSiSorteaza]
+  );
+  const wordpressFiltrate = useMemo(
+    () => filtreazaSiSorteaza(websitesWordPress),
+    [filtreazaSiSorteaza]
+  );
+  const normaleFiltrate = useMemo(
+    () => filtreazaSiSorteaza(websitesNormale),
+    [filtreazaSiSorteaza]
+  );
+  const areRezultate =
+    principaleFiltrate.length > 0 || wordpressFiltrate.length > 0 || normaleFiltrate.length > 0;
 
   useEffect(() => {
     let activ = true;
 
     const incarcaStatus = async () => {
-      try {
-        const response = await fetch("/api/status", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Nu s-a putut încărca statusul.");
-        }
+      setStatusMap({});
+      setSeIncarcaStatusul(true);
 
-        const data = await response.json();
-        if (!activ) {
-          return;
-        }
+      const toateWebsiteurile = [...websitesPrincipale, ...websitesWordPress, ...websitesNormale];
+      const urls = [...new Set(toateWebsiteurile.map((website) => website.url))];
 
-        const nextStatus = {};
-        for (const item of data.checks || []) {
-          nextStatus[item.url] = item.online;
-        }
-        setStatusMap(nextStatus);
-      } catch (_error) {
-        if (activ) {
-          setStatusMap({});
-        }
-      } finally {
-        if (activ) {
-          setSeIncarcaStatusul(false);
-        }
+      if (!urls.length) {
+        setSeIncarcaStatusul(false);
+        return;
+      }
+
+      let areRaspuns = false;
+
+      await Promise.all(
+        urls.map(async (url) => {
+          try {
+            const response = await fetch(`/api/status?url=${encodeURIComponent(url)}`, {
+              cache: "no-store"
+            });
+            if (!response.ok) {
+              throw new Error("Nu s-a putut încărca statusul.");
+            }
+
+            const data = await response.json();
+            if (!activ) {
+              return;
+            }
+
+            setStatusMap((anterior) => ({
+              ...anterior,
+              [url]: Boolean(data.online)
+            }));
+          } catch (_error) {
+            if (!activ) {
+              return;
+            }
+
+            setStatusMap((anterior) => ({
+              ...anterior,
+              [url]: false
+            }));
+          } finally {
+            if (!activ) {
+              return;
+            }
+            if (!areRaspuns) {
+              areRaspuns = true;
+              setSeIncarcaStatusul(false);
+            }
+          }
+        })
+      );
+
+      if (activ) {
+        setSeIncarcaStatusul(false);
       }
     };
 
@@ -91,44 +141,127 @@ export default function HomePage() {
         />
       </section>
 
-      <section className="grila" aria-label="Lista website-uri Serviciul Online">
-        {websiteuriFiltrate.map((website) => {
-          const status = statusByUrl[website.url];
-          const isKnown = typeof status === "boolean";
-          const statusClass = !isKnown ? "necunoscut" : status ? "online" : "offline";
-          const statusText = !isKnown ? "..." : status ? "ON" : "OFF";
-          const statusAria = !isKnown
-            ? "Status necunoscut"
-            : status
-              ? "Website online"
-              : "Website offline";
+      <section className="sectiuneLista" aria-label="Platforme principale">
+        <h2 className="titluSectiune">Platforme principale</h2>
+        <div className="grila">
+          {principaleFiltrate.map((website) => {
+            const status = statusByUrl[website.url];
+            const isKnown = typeof status === "boolean";
+            const statusClass = !isKnown ? "necunoscut" : status ? "online" : "offline";
+            const statusAria = !isKnown
+              ? "Status necunoscut"
+              : status
+                ? "Website online"
+                : "Website offline";
 
-          return (
-            <a
-              key={website.nume}
-              href={website.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="card"
-            >
-              <div className="cardHeader">
-                <h2>{website.nume}</h2>
-                <span className={`status ${statusClass}`} aria-label={statusAria}>
-                  {statusText}
-                </span>
-                <span className="sageata" aria-hidden="true">
-                  ↗
-                </span>
-              </div>
-              <p className="url">{website.url.replace("https://", "")}</p>
-              <span className="cta">Deschide website</span>
-            </a>
-          );
-        })}
-        {!websiteuriFiltrate.length ? (
-          <p className="faraRezultate">Nu există rezultate pentru această căutare.</p>
-        ) : null}
+            return (
+              <a
+                key={website.nume}
+                href={website.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="card"
+              >
+                <div className="cardHeader">
+                  <h3>{website.nume}</h3>
+                  <span className={`status ${statusClass}`} aria-label={statusAria}>
+                    {!isKnown ? <span className="spinner" aria-hidden="true" /> : status ? "ON" : "OFF"}
+                  </span>
+                  <span className="sageata" aria-hidden="true">
+                    ↗
+                  </span>
+                </div>
+                <p className="url">{website.url.replace("https://", "")}</p>
+                <span className="cta">Deschide website</span>
+              </a>
+            );
+          })}
+        </div>
       </section>
+
+      <section className="sectiuneLista" aria-label="Website-uri WordPress">
+        <h2 className="titluSectiune">Website-uri WordPress</h2>
+        <div className="grila">
+          {wordpressFiltrate.map((website) => {
+            const status = statusByUrl[website.url];
+            const isKnown = typeof status === "boolean";
+            const statusClass = !isKnown ? "necunoscut" : status ? "online" : "offline";
+            const statusAria = !isKnown
+              ? "Status necunoscut"
+              : status
+                ? "Website online"
+                : "Website offline";
+
+            return (
+              <a
+                key={website.nume}
+                href={website.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="card"
+              >
+                <div className="cardHeader">
+                  <h3>{website.nume}</h3>
+                  <span className={`status ${statusClass}`} aria-label={statusAria}>
+                    {!isKnown ? <span className="spinner" aria-hidden="true" /> : status ? "ON" : "OFF"}
+                  </span>
+                  <span className="sageata" aria-hidden="true">
+                    ↗
+                  </span>
+                </div>
+                <p className="url">{website.url.replace("https://", "")}</p>
+                <span className="cta">Deschide website</span>
+              </a>
+            );
+          })}
+        </div>
+      </section>
+
+      {normaleFiltrate.length > 0 ? (
+        <section className="sectiuneLista" aria-label="Alte website-uri">
+          <h2 className="titluSectiune">Alte website-uri</h2>
+          <div className="grila">
+            {normaleFiltrate.map((website) => {
+              const status = statusByUrl[website.url];
+              const isKnown = typeof status === "boolean";
+              const statusClass = !isKnown ? "necunoscut" : status ? "online" : "offline";
+              const statusAria = !isKnown
+                ? "Status necunoscut"
+                : status
+                  ? "Website online"
+                  : "Website offline";
+
+              return (
+                <a
+                  key={website.nume}
+                  href={website.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="card"
+                >
+                  <div className="cardHeader">
+                    <h3>{website.nume}</h3>
+                    <span className={`status ${statusClass}`} aria-label={statusAria}>
+                      {!isKnown ? <span className="spinner" aria-hidden="true" /> : status ? "ON" : "OFF"}
+                    </span>
+                    <span className="sageata" aria-hidden="true">
+                      ↗
+                    </span>
+                  </div>
+                  <p className="url">{website.url.replace("https://", "")}</p>
+                  <span className="cta">Deschide website</span>
+                </a>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {!areRezultate ? (
+        <section className="sectiuneLista">
+          <p className="faraRezultate">Nu există rezultate pentru această căutare.</p>
+        </section>
+      ) : null}
     </main>
   );
 }

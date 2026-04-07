@@ -1,42 +1,75 @@
 import { NextResponse } from "next/server";
-import { websites } from "@/lib/websites";
+import { allWebsites } from "@/lib/websites";
 
 export const dynamic = "force-dynamic";
 
 async function checkWebsite(url) {
-  const timeoutMs = 6000;
-
-  try {
-    const headResponse = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: "no-store"
-    });
-
-    if (headResponse.ok) {
-      return true;
+  const timeoutMs = 25000;
+  const maxAttempts = 2;
+  const requestOptions = {
+    // Manual redirect avoids false negatives for sites
+    // that point to internal/unreachable callback hosts.
+    redirect: "manual",
+    cache: "no-store",
+    headers: {
+      "User-Agent": "ServiciulOnlineStatusCheck/1.0",
+      Accept: "text/html,application/xhtml+xml"
     }
-  } catch (_error) {
-    // Some endpoints block HEAD, fallback to GET below.
+  };
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const headResponse = await fetch(url, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(timeoutMs),
+        ...requestOptions
+      });
+
+      // Any non-5xx response means the service is reachable.
+      if (headResponse.status < 500) {
+        return true;
+      }
+    } catch (_error) {
+      // Some endpoints are slow or block HEAD; fallback to GET below.
+    }
+
+    try {
+      const getResponse = await fetch(url, {
+        method: "GET",
+        signal: AbortSignal.timeout(timeoutMs),
+        ...requestOptions
+      });
+
+      if (getResponse.status < 500) {
+        return true;
+      }
+    } catch (_error) {
+      // Retry below.
+    }
   }
 
-  try {
-    const getResponse = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: "no-store"
-    });
-    return getResponse.ok;
-  } catch (_error) {
-    return false;
-  }
+  return false;
 }
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const singleUrl = searchParams.get("url");
+
+  if (singleUrl) {
+    const isKnownUrl = allWebsites.some((site) => site.url === singleUrl);
+    if (!isKnownUrl) {
+      return NextResponse.json({ error: "URL necunoscut." }, { status: 400 });
+    }
+
+    const online = await checkWebsite(singleUrl);
+    return NextResponse.json(
+      { url: singleUrl, online },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   const checks = await Promise.all(
-    websites.map(async (site) => ({
+    allWebsites.map(async (site) => ({
       nume: site.nume,
       url: site.url,
       online: await checkWebsite(site.url)
